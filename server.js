@@ -25,7 +25,7 @@ const razorpay = new Razorpay({
 })
 
 app.get('/logo.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, 'logo.svg'))
+    res.sendFile(path.join(__dirname, 'logo.svg')) // for testing
 })
 
 
@@ -67,7 +67,7 @@ app.post('/razorpay/:options', async (req, res) => {
 
         pool.connect((err, client, done) => {
             if (err) throw err
-            client.query('Insert Into paymentgateway (bill_no, date, currency, amount, status, token) VALUES ($1,$2,$3,$4,$5,$6)', [response.id,new Date(),response.currency,response.amount,false,receiptNo], (err, res) => {
+            client.query('Insert Into paymentgateway (bill_no, date, currency, amount, status, token) VALUES ($1,$2,$3,$4,$5,$6)', [response.id,new Date(),response.currency,response.amount/100,false,receiptNo], (err, res) => {
                 done()
 
                 if (err) {
