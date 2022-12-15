@@ -4,11 +4,11 @@ const app = require('express')()
 const path = require('path')
 const shortid = require('shortid')
 const Razorpay = require('razorpay')
-// const cors = require('cors')
+const cors = require('cors')
 const bodyParser = require('body-parser')
 const Pool = require('pg').Pool
 
-// app.use(cors())
+app.use(cors())
 app.use(bodyParser.json())
 
 const pool = new Pool({
