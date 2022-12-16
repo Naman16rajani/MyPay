@@ -1,17 +1,19 @@
-require('dotenv').config()
 
+require('dotenv').config()  // for security purpose and geting data from .env file
 const app = require('express')()
 const path = require('path')
-const shortid = require('shortid')
-const Razorpay = require('razorpay')
+const shortid = require('shortid')// for generating token
+const Razorpay = require('razorpay')// for connecting backend to Razorpay servers
 const cors = require('cors')
 const bodyParser = require('body-parser')
-const Pool = require('pg').Pool
+const Pool = require('pg').Pool // for connecting database
 const crypto = require('crypto')
 
 app.use(cors())
 app.use(bodyParser.json())
 
+
+// setting pool for postgres database
 const pool = new Pool({
     user: 'postgres',
     host: process.env.DBHOST.toString(),
@@ -20,48 +22,30 @@ const pool = new Pool({
     port: 5760,
 })
 
+// Instantiate the razorpay instance with key_id & key_secret
 const razorpay = new Razorpay({
     key_id: process.env.SECRET_ID,
     key_secret: process.env.SECRET_KEY
 })
 
+//For tesing
 app.get('/logo.svg', (req, res) => {
-    res.sendFile(path.join(__dirname, 'logo.svg')) // for testing
+    res.sendFile(path.join(__dirname, 'logo.svg'))
 })
 
 
-app.post('/payment_done/:status', async (req, res) => {
-    const oid = req.params.status
-    //TODO: update to database
-    // pool.connect((err, client, done) => {
-    //     if (err) throw err
-    //     client.query('Update  paymentgateway set status=$1 where bill_no=$2', [true, oid], (err, res) => {
-    //         done()
-    //
-    //         if (err) {
-    //             console.log(err.stack)
-    //         }
-    //         // } else {
-    //         //     console.log(res.rows[0])
-    //         // }
-    //     })
-    // })
-    res.send(true)
 
 
-})
+//Webhook URL
 app.post('/verification', (req, res) => {
     // do a validation
-    const secret = process.env.SECRET;
-
-    console.log(req.body)
-
-
+    const secret = process.env.SECRET.toString(); // secret string
+    // for generating hash
     const shasum = crypto.createHmac('sha256', secret)
     shasum.update(JSON.stringify(req.body))
     const digest = shasum.digest('hex')
 
-    console.log(digest, req.headers['x-razorpay-signature'])
+    console.log(digest, req.body)
 
     if (digest === req.headers['x-razorpay-signature']) {
         console.log('request is legit')
@@ -71,26 +55,26 @@ app.post('/verification', (req, res) => {
         if (status === true) {
             pool.connect((err, client, done) => {
                 if (err) throw err
+                //updating status to true after payment into database
                 client.query('Update  paymentgateway set status=$1 where bill_no=$2', [true, oid], (err, res) => {
                     done()
 
                     if (err) {
                         console.log(err.stack)
                     }
-                    // } else {
-                    //     console.log(res.rows[0])
-                    // }
+
                 })
             })
         }
-        // require('fs').writeFileSync('payment1.json', JSON.stringify(req.body, null, 4))
     } else {
         // pass it
     }
-    res.json({status: 'ok'})
+    res.json({status: 'ok'}) // sending https status 200 to razorpay servers
 })
+
+
+// for getting OrderID
 app.post('/razorpay/:options', async (req, res) => {
-    // const payment_capture = 1
     const amount = parseInt(req.params.options)
     const currency = 'INR'
     const receiptNo = shortid.generate()
@@ -98,27 +82,24 @@ app.post('/razorpay/:options', async (req, res) => {
         amount: amount * 100,
         currency,
         receipt: receiptNo,
-        // payment_capture
     }
 
     try {
+        // creating order in razorpay
         const response = await razorpay.orders.create(options)
-        // console.log(response)
-        //TODO: Store to database
 
+        // entering data in database
         pool.connect((err, client, done) => {
             if (err) throw err
             client.query('Insert Into paymentgateway (bill_no, date, currency, amount, status, token) VALUES ($1,$2,$3,$4,$5,$6)', [response.id, new Date(), response.currency, response.amount / 100, false, receiptNo], (err, res) => {
                 done()
-
                 if (err) {
                     console.log(err.stack)
                 }
-                // } else {
-                //     console.log(res.rows[0])
-                // }
+
             })
         })
+        // sending .json with orderid,currency,amount
         res.json({
             id: response.id,
             currency: response.currency,
